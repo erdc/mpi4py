@@ -350,8 +350,6 @@ cdef class Comm:
     def Mprobe(self, int source=0, int tag=0, Status status=None):
         """
         Blocking test for a message
-
-        .. note:: This function blocks until the message arrives.
         """
         cdef MPI_Message cmessage = MPI_MESSAGE_NULL
         cdef MPI_Status *statusp = arg_Status(status)
@@ -1184,6 +1182,24 @@ cdef class Comm:
         cdef Request request = <Request>Request.__new__(Request)
         request.ob_buf = PyMPI_irecv(obj, dest, tag, comm, &request.ob_mpi)
         return request
+    #
+    def mprobe(self, int source=0, int tag=0, Status status=None):
+        cdef MPI_Comm comm = self.ob_mpi
+        cdef MPI_Status *statusp = arg_Status(status)
+        cdef Message message = <Message>Message.__new__(Message)
+        message.ob_buf = PyMPI_mprobe(source, tag, comm,
+                                      &message.ob_mpi, statusp)
+        return message
+    #
+    def improbe(self, int source=0, int tag=0, Status status=None):
+        cdef int flag = 0
+        cdef MPI_Comm comm = self.ob_mpi
+        cdef MPI_Status *statusp = arg_Status(status)
+        cdef Message message = <Message>Message.__new__(Message)
+        message.ob_buf = PyMPI_improbe(source, tag, comm, &flag,
+                                       &message.ob_mpi, statusp)
+        if flag == 0: return None
+        return message
     #
     def barrier(self):
         "Barrier"
