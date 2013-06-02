@@ -29,6 +29,7 @@ def fix_config_vars(names, values):
         if 'ARCHFLAGS' in os.environ:
             ARCHFLAGS = os.environ['ARCHFLAGS']
             for i, flag in enumerate(list(values)):
+                if flag is None: continue
                 flag, count = re.subn('-arch\s+\w+', ' ', flag)
                 if count and ARCHFLAGS:
                     flag = flag + ' ' + ARCHFLAGS
@@ -36,6 +37,7 @@ def fix_config_vars(names, values):
         if 'SDKROOT' in os.environ:
             SDKROOT = os.environ['SDKROOT']
             for i, flag in enumerate(list(values)):
+                if flag is None: continue
                 flag, count = re.subn('-isysroot [^ \t]*', ' ', flag)
                 if count and SDKROOT:
                     flag = flag + ' ' + '-isysroot ' + SDKROOT
@@ -135,6 +137,8 @@ def customize_compiler(compiler, lang=None,
             basecflags =  '-Wall -Wimplicit'
             if not ccshared: ccshared = '-fPIC'
             if not ldshared: ldshared = '-shared'
+            if sys.platform == 'darwin':
+                ldshared += ' -Wl,-undefined,dynamic_lookup'
         # Compiler command overriding
         if not mpild and (mpicc or mpicxx):
             if lang == 'c':
@@ -288,7 +292,7 @@ except ImportError:
 class ConfigureMPI(object):
 
     SRCDIR = 'src'
-    SOURCES = [os.path.join('include', 'mpi4py', 'mpi.pxi')]
+    SOURCES = [os.path.join('include', 'mpi4py', 'libmpi.pxd')]
     DESTDIR = 'src'
     CONFIG_H = 'config.h'
     MISSING_H = 'missing.h'

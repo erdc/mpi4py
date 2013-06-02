@@ -49,7 +49,7 @@ static void * my_dlopen(const char *name, int mode) {
 #define dlopen my_dlopen
 */
 
-static void OPENMPI_dlopen_libmpi(void)
+static void PyMPI_OPENMPI_dlopen_libmpi(void)
 {
   void *handle = 0;
   int mode = RTLD_NOW | RTLD_GLOBAL;
@@ -78,7 +78,7 @@ static void OPENMPI_dlopen_libmpi(void)
 
 static int PyMPI_OPENMPI_MPI_Init(int *argc, char ***argv)
 {
-  OPENMPI_dlopen_libmpi();
+  PyMPI_OPENMPI_dlopen_libmpi();
   return MPI_Init(argc, argv);
 }
 #undef  MPI_Init
@@ -87,7 +87,7 @@ static int PyMPI_OPENMPI_MPI_Init(int *argc, char ***argv)
 static int PyMPI_OPENMPI_MPI_Init_thread(int *argc, char ***argv,
                                          int required, int *provided)
 {
-  OPENMPI_dlopen_libmpi();
+  PyMPI_OPENMPI_dlopen_libmpi();
   return MPI_Init_thread(argc, argv, required, provided);
 }
 #undef  MPI_Init_thread
@@ -243,6 +243,23 @@ static int PyMPI_OPENMPI_MPI_Win_set_errhandler(MPI_Win win,
 #define MPI_Win_set_errhandler PyMPI_OPENMPI_MPI_Win_set_errhandler
 
 #endif /* !(PyMPI_OPENMPI_VERSION < 10402) */
+
+/* ------------------------------------------------------------------------- */
+
+/*
+ * Open MPI 1.7 tries to set status even in the case of MPI_STATUS_IGNORE.
+ */
+
+#if PyMPI_OPENMPI_VERSION >= 10700
+static int PyMPI_OPENMPI_MPI_Mrecv(void *buf, int count, MPI_Datatype type,
+                                   MPI_Message *message, MPI_Status *status)
+{
+  MPI_Status sts; if (status == MPI_STATUS_IGNORE) status = &sts;
+  return MPI_Mrecv(buf, count, type, message, status);
+}
+#undef  MPI_Mrecv
+#define MPI_Mrecv PyMPI_OPENMPI_MPI_Mrecv
+#endif  /* !(PyMPI_OPENMPI_VERSION > 10700) */
 
 /* ------------------------------------------------------------------------- */
 

@@ -638,15 +638,11 @@ cdef class Comm:
         Generalized All-to-All communication allowing different
         counts, displacements and datatypes for each partner
         """
-        sendbuf = recvbuf = None
-        raise NotImplementedError # XXX implement!
-        cdef void *sbuf = NULL, *rbuf = NULL
-        cdef int  *scounts = NULL, *rcounts = NULL
-        cdef int  *sdispls = NULL, *rdispls = NULL
-        cdef MPI_Datatype *stypes = NULL, *rtypes = NULL
+        cdef _p_msg_ccow m = message_ccow()
+        m.for_alltoallw(sendbuf, recvbuf, self.ob_mpi)
         with nogil: CHKERR( MPI_Alltoallw(
-            sbuf, scounts, sdispls, stypes,
-            rbuf, rcounts, rdispls, rtypes,
+            m.sbuf, m.scounts, m.sdispls, m.stypes,
+            m.rbuf, m.rcounts, m.rdispls, m.rtypes,
             self.ob_mpi) )
 
 
@@ -835,17 +831,14 @@ cdef class Comm:
         """
         Nonblocking Generalized All-to-All
         """
-        raise NotImplementedError # XXX implement!
-        cdef void *sbuf = NULL, *rbuf = NULL
-        cdef int  *scounts = NULL, *rcounts = NULL
-        cdef int  *sdispls = NULL, *rdispls = NULL
-        cdef MPI_Datatype *stypes = NULL, *rtypes = NULL
+        cdef _p_msg_ccow m = message_ccow()
+        m.for_alltoallw(sendbuf, recvbuf, self.ob_mpi)
         cdef Request request = <Request>Request.__new__(Request)
         with nogil: CHKERR( MPI_Ialltoallw(
-            sbuf, scounts, sdispls, stypes,
-            rbuf, rcounts, rdispls, rtypes,
+            m.sbuf, m.scounts, m.sdispls, m.stypes,
+            m.rbuf, m.rcounts, m.rdispls, m.rtypes,
             self.ob_mpi, &request.ob_mpi) )
-        request.ob_buf = None
+        request.ob_buf = m
         return request
 
     def Ireduce(self, sendbuf, recvbuf, Op op not None=SUM, int root=0):
@@ -1264,11 +1257,13 @@ cdef class Intracomm(Comm):
         """
         Create cartesian communicator
         """
-        cdef int ndims = 0, *idims = NULL
-        dims = getarray_int(dims, &ndims, &idims)
-        if periods is None: periods = [False] * ndims
+        cdef int ndims = 0
+        ndims = <int>len(dims)
+        cdef int *idims = NULL
+        dims = asarray_int(dims, ndims, &idims)
         cdef int *iperiods = NULL
-        periods = chkarray_int(periods, ndims, &iperiods)
+        if periods is None: periods = [False] * ndims
+        periods = asarray_int(periods, ndims, &iperiods)
         #
         cdef Cartcomm comm = <Cartcomm>Cartcomm.__new__(Cartcomm)
         with nogil: CHKERR( MPI_Cart_create(
@@ -1304,13 +1299,12 @@ cdef class Intracomm(Comm):
         cdef int *idestweight   = MPI_UNWEIGHTED
         if sources is not None:
             sources = getarray_int(sources, &indegree, &isource)
-        if sourceweights is not None:
-            sourceweights = chkarray_int(
-                sourceweights, indegree, &isourceweight)
+        sourceweights = asarray_weights(
+            sourceweights, indegree, &isourceweight)
         if destinations is not None:
             destinations = getarray_int(destinations, &outdegree, &idest)
-        if destweights is not None:
-            destweights = chkarray_int(destweights, outdegree, &idestweight)
+        destweights = asarray_weights(
+            destweights, outdegree, &idestweight)
         cdef MPI_Info cinfo = arg_Info(info)
         #
         cdef Distgraphcomm comm = \
@@ -1330,12 +1324,12 @@ cdef class Intracomm(Comm):
         cdef int nv = 0, ne = 0, i = 0
         cdef int *isource = NULL, *idegree = NULL,
         cdef int *idest = NULL, *iweight = MPI_UNWEIGHTED
-        sources = getarray_int(sources, &nv, &isource)
-        degrees = chkarray_int(degrees,  nv, &idegree)
+        nv = <int>len(sources)
+        sources = asarray_int(sources, nv, &isource)
+        degrees = asarray_int(degrees, nv, &idegree)
         for i from 0 <= i < nv: ne += idegree[i]
-        destinations = chkarray_int(destinations, ne, &idest)
-        if weights is not None:
-            weights = chkarray_int(weights, ne, &iweight)
+        destinations = asarray_int(destinations, ne, &idest)
+        weights = asarray_weights(weights, ne, &iweight)
         cdef MPI_Info cinfo = arg_Info(info)
         #
         cdef Distgraphcomm comm = \
@@ -1428,6 +1422,147 @@ cdef class Intracomm(Comm):
         cdef MPI_Comm comm = self.ob_mpi
         return PyMPI_exscan(sendobj, recvobj, op, comm)
 
+    # Neighborhood Collectives
+    # ------------------------
+
+    def Neighbor_allgather(self, sendbuf, recvbuf):
+        """
+        Neighbor Gather to All
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_allgather(0, sendbuf, recvbuf, self.ob_mpi)
+        with nogil: CHKERR( MPI_Neighbor_allgather(
+            m.sbuf, m.scount, m.stype,
+            m.rbuf, m.rcount, m.rtype,
+            self.ob_mpi) )
+
+    def Neighbor_allgatherv(self, sendbuf, recvbuf):
+        """
+        Neighbor Gather to All Vector
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_allgather(1, sendbuf, recvbuf, self.ob_mpi)
+        with nogil: CHKERR( MPI_Neighbor_allgatherv(
+            m.sbuf, m.scount, m.stype,
+            m.rbuf, m.rcounts, m.rdispls, m.rtype,
+            self.ob_mpi) )
+
+    def Neighbor_alltoall(self, sendbuf, recvbuf):
+        """
+        Neighbor All-to-All
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_alltoall(0, sendbuf, recvbuf, self.ob_mpi)
+        with nogil: CHKERR( MPI_Neighbor_alltoall(
+            m.sbuf, m.scount, m.stype,
+            m.rbuf, m.rcount, m.rtype,
+            self.ob_mpi) )
+
+    def Neighbor_alltoallv(self, sendbuf, recvbuf):
+        """
+        Neighbor All-to-All Vector
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_alltoall(1, sendbuf, recvbuf, self.ob_mpi)
+        with nogil: CHKERR( MPI_Neighbor_alltoallv(
+            m.sbuf, m.scounts, m.sdispls, m.stype,
+            m.rbuf, m.rcounts, m.rdispls, m.rtype,
+            self.ob_mpi) )
+
+    def Neighbor_alltoallw(self, sendbuf, recvbuf):
+        """
+        Neighbor All-to-All Generalized
+        """
+        cdef _p_msg_ccow m = message_ccow()
+        m.for_neighbor_alltoallw(sendbuf, recvbuf, self.ob_mpi)
+        with nogil: CHKERR( MPI_Neighbor_alltoallw(
+            m.sbuf, m.scounts, m.sdisplsA, m.stypes,
+            m.rbuf, m.rcounts, m.rdisplsA, m.rtypes,
+            self.ob_mpi) )
+
+    # Nonblocking Neighborhood Collectives
+
+    def Ineighbor_allgather(self, sendbuf, recvbuf):
+        """
+        Nonblocking Neighbor Gather to All
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_allgather(0, sendbuf, recvbuf, self.ob_mpi)
+        cdef Request request = <Request>Request.__new__(Request)
+        with nogil: CHKERR( MPI_Ineighbor_allgather(
+            m.sbuf, m.scount, m.stype,
+            m.rbuf, m.rcount, m.rtype,
+            self.ob_mpi, &request.ob_mpi) )
+        request.ob_buf = m
+        return request
+
+    def Ineighbor_allgatherv(self, sendbuf, recvbuf):
+        """
+        Nonblocking Neighbor Gather to All Vector
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_allgather(1, sendbuf, recvbuf, self.ob_mpi)
+        cdef Request request = <Request>Request.__new__(Request)
+        with nogil: CHKERR( MPI_Ineighbor_allgatherv(
+            m.sbuf, m.scount, m.stype,
+            m.rbuf, m.rcounts, m.rdispls, m.rtype,
+            self.ob_mpi, &request.ob_mpi) )
+        request.ob_buf = m
+        return request
+
+    def Ineighbor_alltoall(self, sendbuf, recvbuf):
+        """
+        Nonblocking Neighbor All-to-All
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_alltoall(0, sendbuf, recvbuf, self.ob_mpi)
+        cdef Request request = <Request>Request.__new__(Request)
+        with nogil: CHKERR( MPI_Ineighbor_alltoall(
+            m.sbuf, m.scount, m.stype,
+            m.rbuf, m.rcount, m.rtype,
+            self.ob_mpi, &request.ob_mpi) )
+        request.ob_buf = m
+        return request
+
+    def Ineighbor_alltoallv(self, sendbuf, recvbuf):
+        """
+        Nonblocking Neighbor All-to-All Vector
+        """
+        cdef _p_msg_cco m = message_cco()
+        m.for_neighbor_alltoall(1, sendbuf, recvbuf, self.ob_mpi)
+        cdef Request request = <Request>Request.__new__(Request)
+        with nogil: CHKERR( MPI_Ineighbor_alltoallv(
+            m.sbuf, m.scounts, m.sdispls, m.stype,
+            m.rbuf, m.rcounts, m.rdispls, m.rtype,
+            self.ob_mpi, &request.ob_mpi) )
+        request.ob_buf = m
+        return request
+
+    def Ineighbor_alltoallw(self, sendbuf, recvbuf):
+        """
+        Nonblocking Neighbor All-to-All Generalized
+        """
+        cdef _p_msg_ccow m = message_ccow()
+        m.for_neighbor_alltoallw(sendbuf, recvbuf, self.ob_mpi)
+        cdef Request request = <Request>Request.__new__(Request)
+        with nogil: CHKERR( MPI_Ineighbor_alltoallw(
+            m.sbuf, m.scounts, m.sdisplsA, m.stypes,
+            m.rbuf, m.rcounts, m.rdisplsA, m.rtypes,
+            self.ob_mpi, &request.ob_mpi) )
+        request.ob_buf = m
+        return request
+
+    # Python Communication
+    #
+    def neighbor_allgather(self, sendobj=None, recvobj=None):
+        """Neighbor Gather to All"""
+        cdef MPI_Comm comm = self.ob_mpi
+        return PyMPI_neighbor_allgather(sendobj, recvobj, comm)
+    #
+    def neighbor_alltoall(self, sendobj=None, recvobj=None):
+        """Neighbor All to All Scatter/Gather"""
+        cdef MPI_Comm comm = self.ob_mpi
+        return PyMPI_neighbor_alltoall(sendobj, recvobj, comm)
 
     # Establishing Communication
     # --------------------------
@@ -1452,7 +1587,7 @@ cdef class Intracomm(Comm):
             if args is not None:
                 tmp1 = asarray_argv(args, &argv)
         if errcodes is not None:
-            tmp2 = newarray_int(maxprocs, &ierrcodes)
+            tmp2 = mkarray_int(maxprocs, &ierrcodes)
         #
         cdef Intercomm comm = <Intercomm>Intercomm.__new__(Intercomm)
         with nogil: CHKERR( MPI_Comm_spawn(
@@ -1479,7 +1614,7 @@ cdef class Intracomm(Comm):
         #
         cdef int rank = MPI_UNDEFINED
         CHKERR( MPI_Comm_rank(self.ob_mpi, &rank) )
-        cdef object tmp1, tmp2, tmp3, tmp4, tmp5
+        cdef tmp1, tmp2, tmp3, tmp4, tmp5
         cdef Py_ssize_t i=0, n=0
         if root == rank:
             count = <int>len(command)
@@ -1493,7 +1628,7 @@ cdef class Intracomm(Comm):
                 tmp3 = asarray_nprocs(maxprocs, count, &imaxprocs)
             for i from 0 <= i < count:
                 n += imaxprocs[i]
-            tmp5 = newarray_int(n, &ierrcodes)
+            tmp5 = mkarray_int(n, &ierrcodes)
         #
         cdef Intercomm comm = <Intercomm>Intercomm.__new__(Intercomm)
         with nogil: CHKERR( MPI_Comm_spawn_multiple(
@@ -1592,11 +1727,11 @@ cdef class Cartcomm(Intracomm):
         cdef int ndim = 0
         CHKERR( MPI_Cartdim_get(self.ob_mpi, &ndim) )
         cdef int *idims = NULL
-        cdef tmp1 = newarray_int(ndim, &idims)
+        cdef tmp1 = mkarray_int(ndim, &idims)
         cdef int *iperiods = NULL
-        cdef tmp2 = newarray_int(ndim, &iperiods)
+        cdef tmp2 = mkarray_int(ndim, &iperiods)
         cdef int *icoords = NULL
-        cdef tmp3 = newarray_int(ndim, &icoords)
+        cdef tmp3 = mkarray_int(ndim, &icoords)
         CHKERR( MPI_Cart_get(self.ob_mpi, ndim, idims, iperiods, icoords) )
         cdef int i = 0
         cdef object dims    = [idims[i]    for i from 0 <= i < ndim]
@@ -1634,7 +1769,7 @@ cdef class Cartcomm(Intracomm):
         """
         cdef int ndim = 0, *icoords = NULL
         CHKERR( MPI_Cartdim_get( self.ob_mpi, &ndim) )
-        coords = chkarray_int(coords, ndim, &icoords)
+        coords = asarray_int(coords, ndim, &icoords)
         cdef int rank = MPI_PROC_NULL
         CHKERR( MPI_Cart_rank(self.ob_mpi, icoords, &rank) )
         return rank
@@ -1643,10 +1778,11 @@ cdef class Cartcomm(Intracomm):
         """
         Translate ranks to logical coordinates
         """
-        cdef int ndim = 0, *icoords = NULL
+        cdef int i = 0, ndim = 0, *icoords = NULL
         CHKERR( MPI_Cartdim_get(self.ob_mpi, &ndim) )
-        cdef object coords = newarray_int(ndim, &icoords)
+        cdef tmp = mkarray_int(ndim, &icoords)
         CHKERR( MPI_Cart_coords(self.ob_mpi, rank, ndim, icoords) )
+        cdef object coords = [icoords[i] for i from 0 <= i < ndim]
         return coords
 
     # Cartesian Shift Function
@@ -1671,7 +1807,7 @@ cdef class Cartcomm(Intracomm):
         """
         cdef int ndim = 0, *iremdims = NULL
         CHKERR( MPI_Cartdim_get(self.ob_mpi, &ndim) )
-        remain_dims = chkarray_int(remain_dims, ndim, &iremdims)
+        remain_dims = asarray_int(remain_dims, ndim, &iremdims)
         cdef Cartcomm comm = <Cartcomm>Cartcomm.__new__(Cartcomm)
         with nogil: CHKERR( MPI_Cart_sub(self.ob_mpi, iremdims, &comm.ob_mpi) )
         return comm
@@ -1686,9 +1822,10 @@ cdef class Cartcomm(Intracomm):
         calling process on the physical machine
         """
         cdef int ndims = 0, *idims = NULL, *iperiods = NULL
-        dims = getarray_int(dims, &ndims, &idims)
+        ndims = <int>len(dims)
+        dims = asarray_int(dims, ndims, &idims)
         if periods is None: periods = [False] * ndims
-        periods = chkarray_int(periods, ndims, &iperiods)
+        periods = asarray_int(periods, ndims, &iperiods)
         cdef int rank = MPI_PROC_NULL
         CHKERR( MPI_Cart_map(self.ob_mpi, ndims, idims, iperiods, &rank) )
         return rank
@@ -1701,14 +1838,15 @@ def Compute_dims(int nnodes, dims):
     Return a balanced distribution of
     processes per coordinate direction
     """
-    cdef int ndims=0, *idims = NULL
+    cdef int i = 0, ndims = 0, *idims = NULL
     try:
         ndims = <int>len(dims)
     except:
         ndims = dims
         dims = [0] * ndims
-    dims = chkarray_int(dims, ndims, &idims)
+    cdef tmp = asarray_int(dims, ndims, &idims)
     CHKERR( MPI_Dims_create(nnodes, ndims, idims) )
+    dims = [idims[i] for i from 0 <= i < ndims]
     return dims
 
 
@@ -1758,9 +1896,9 @@ cdef class Graphcomm(Intracomm):
         cdef int nindex = 0, nedges = 0
         CHKERR( MPI_Graphdims_get( self.ob_mpi, &nindex, &nedges) )
         cdef int *iindex = NULL
-        cdef tmp1 = newarray_int(nindex, &iindex)
+        cdef tmp1 = mkarray_int(nindex, &iindex)
         cdef int *iedges = NULL
-        cdef tmp2 = newarray_int(nedges, &iedges)
+        cdef tmp2 = mkarray_int(nedges, &iedges)
         CHKERR( MPI_Graph_get(self.ob_mpi, nindex, nedges, iindex, iedges) )
         cdef int i = 0
         cdef object index = [iindex[i] for i from 0 <= i < nindex]
@@ -1803,14 +1941,12 @@ cdef class Graphcomm(Intracomm):
         """
         Return list of neighbors of a process
         """
-        cdef int nneighbors = 0
+        cdef int i = 0, nneighbors = 0, *ineighbors = NULL
         CHKERR( MPI_Graph_neighbors_count(
                 self.ob_mpi, rank, &nneighbors) )
-        cdef int *ineighbors = NULL
-        cdef tmp = newarray_int(nneighbors, &ineighbors)
+        cdef tmp = mkarray_int(nneighbors, &ineighbors)
         CHKERR( MPI_Graph_neighbors(
                 self.ob_mpi, rank, nneighbors, ineighbors) )
-        cdef int i = 0
         cdef object neighbors = [ineighbors[i] for i from 0 <= i < nneighbors]
         return neighbors
 
@@ -1879,13 +2015,13 @@ cdef class Distgraphcomm(Intracomm):
         cdef int *sourceweights = MPI_UNWEIGHTED
         cdef int *destweights   = MPI_UNWEIGHTED
         cdef tmp1, tmp2, tmp3, tmp4
-        tmp1 = newarray_int(maxindegree,  &sources)
-        tmp2 = newarray_int(maxoutdegree, &destinations)
+        tmp1 = mkarray_int(maxindegree,  &sources)
+        tmp2 = mkarray_int(maxoutdegree, &destinations)
         cdef int i = 0
         if weighted:
-            tmp3 = newarray_int(maxindegree,  &sourceweights)
+            tmp3 = mkarray_int(maxindegree,  &sourceweights)
             for i from 0 <= i < maxindegree:  sourceweights[i] = 1
-            tmp4 = newarray_int(maxoutdegree, &destweights)
+            tmp4 = mkarray_int(maxoutdegree, &destweights)
             for i from 0 <= i < maxoutdegree: destweights[i]   = 1
         #
         CHKERR( MPI_Dist_graph_neighbors(

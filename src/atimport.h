@@ -14,24 +14,27 @@
   #define MPICH2 1
 #endif
 #endif
+#if defined(MPICH_NAME) && (MPICH_NAME==3)
+  #define MPICH3 1
+#endif
 #if defined(MPICH_NAME) && (MPICH_NAME==1)
   #define MPICH1 1
 #endif
 
-#if defined(MS_WINDOWS) && !defined(PyMPIAPI)
-  #if defined(MPI_CALL)   /* DeinoMPI */
-    #define PyMPIAPI MPI_CALL
-  #elif defined(MPIAPI)   /* Microsoft MPI */
-    #define PyMPIAPI MPIAPI
-  #endif
+#if defined(MS_WINDOWS) && !defined(MPIAPI)
+#if defined(MPI_CALL) /* DeinoMPI */
+  #define MPIAPI MPI_CALL
 #endif
-#if !defined(PyMPIAPI)
-  #define PyMPIAPI
+#endif
+#if !defined(MPIAPI)
+  #define MPIAPI
 #endif
 
 /* XXX describe */
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
+#elif defined(MPICH3)
+#include "config/mpich3.h"
 #elif defined(MPICH2)
 #include "config/mpich2.h"
 #elif defined(OPEN_MPI)
@@ -40,12 +43,24 @@
 #include "config/unknown.h"
 #endif
 
+#ifdef PyMPI_MISSING_MPI_Type_create_f90_integer
+#undef PyMPI_HAVE_MPI_Type_create_f90_integer
+#endif
+#ifdef PyMPI_MISSING_MPI_Type_create_f90_real
+#undef PyMPI_HAVE_MPI_Type_create_f90_real
+#endif
+#ifdef PyMPI_MISSING_MPI_Type_create_f90_complex
+#undef PyMPI_HAVE_MPI_Type_create_f90_complex
+#endif
+
 /* XXX describe */
 #include "missing.h"
 #include "fallback.h"
 
 /* XXX describe */
-#if   defined(MPICH2)
+#if   defined(MPICH3)
+#include "compat/mpich3.h"
+#elif defined(MPICH2)
 #include "compat/mpich2.h"
 #elif defined(OPEN_MPI)
 #include "compat/openmpi.h"
@@ -88,7 +103,7 @@ static int PyMPI_KEYVAL_WIN_MEMORY = MPI_KEYVAL_INVALID;
 
 static int PyMPI_StartUp(void);
 static int PyMPI_CleanUp(void);
-static int PyMPIAPI PyMPI_AtExitMPI(MPI_Comm,int,void*,void*);
+static int MPIAPI PyMPI_AtExitMPI(MPI_Comm,int,void*,void*);
 
 static int PyMPI_STARTUP_DONE = 0;
 static int PyMPI_StartUp(void)
@@ -148,10 +163,7 @@ static int PyMPI_CleanUp(void)
   return MPI_SUCCESS;
 }
 
-#ifndef PyMPI_UNUSED
-#define PyMPI_UNUSED
-#endif
-static int PyMPIAPI
+static int MPIAPI
 PyMPI_AtExitMPI(PyMPI_UNUSED MPI_Comm comm, 
                 PyMPI_UNUSED int k,
                 PyMPI_UNUSED void *v,
@@ -163,11 +175,11 @@ PyMPI_AtExitMPI(PyMPI_UNUSED MPI_Comm comm,
 /* ------------------------------------------------------------------------- */
 
 #if !defined(PyMPI_USE_MATCHED_RECV)
-  #if defined(PyMPI_MISSING_MPI_Mprobe) || \
-      defined(PyMPI_MISSING_MPI_Mrecv)
-    #define PyMPI_USE_MATCHED_RECV 0
-  #else
+  #if defined(PyMPI_HAVE_MPI_Mprobe) && \
+      defined(PyMPI_HAVE_MPI_Mrecv)
     #define PyMPI_USE_MATCHED_RECV 1
+  #else
+    #define PyMPI_USE_MATCHED_RECV 0
   #endif
 #endif
 #if !defined(PyMPI_USE_MATCHED_RECV)
@@ -323,7 +335,7 @@ PyMemoryView_FromBuffer(Py_buffer *view)
 
 #ifdef PYPY_VERSION
 
-static int
+static int PyMPI_UNUSED
 _PyLong_AsByteArray(PyLongObject* v,
                     unsigned char* bytes, size_t n,
                     int little_endian, int is_signed)
@@ -333,16 +345,15 @@ _PyLong_AsByteArray(PyLongObject* v,
   return -1;
 }
 
+#if PY_VERSION_HEX < 0x02070300 /* PyPy < 2.0 */
 static int
 PyBuffer_FillInfo_PyPy(Py_buffer *view, PyObject *obj,
                        void *buf, Py_ssize_t len,
                        int readonly, int flags)
 {
   if (view == NULL) return 0;
-  if (((flags & PyBUF_WRITABLE) == PyBUF_WRITABLE) &&
-      (readonly == 1)) {
-    PyErr_SetString(PyExc_BufferError,
-                    "Object is not writable.");
+  if ((flags & PyBUF_WRITABLE) && readonly) {
+    PyErr_SetString(PyExc_BufferError, "Object is not writable.");
     return -1;
   }
   if (PyBuffer_FillInfo(view, obj, buf, len, readonly, flags) < 0)
@@ -351,6 +362,7 @@ PyBuffer_FillInfo_PyPy(Py_buffer *view, PyObject *obj,
   return 0;
 }
 #define PyBuffer_FillInfo PyBuffer_FillInfo_PyPy
+#endif
 
 static PyObject *
 PyMemoryView_FromBuffer_PyPy(Py_buffer *view)
@@ -369,7 +381,9 @@ PyMemoryView_FromBuffer_PyPy(Py_buffer *view)
 }
 #define PyMemoryView_FromBuffer PyMemoryView_FromBuffer_PyPy
 
+#if PY_VERSION_HEX < 0x02070300 /* PyPy < 2.0 */
 #define PyCode_GetNumFree(o) PyCode_GetNumFree((PyObject *)(o))
+#endif
 
 #endif/*PYPY_VERSION*/
 

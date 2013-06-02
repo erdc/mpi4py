@@ -3,11 +3,11 @@
 cdef extern from "Python.h":
     enum: PY_SSIZE_T_MAX
     void *PyMem_Malloc(size_t)
-    void *PyMem_Realloc(void *, size_t)
-    void PyMem_Free(void *)
+    void *PyMem_Realloc(void*, size_t)
+    void PyMem_Free(void*)
 
 cdef extern from "Python.h":
-    object PyLong_FromVoidPtr(void *)
+    object PyLong_FromVoidPtr(void*)
     void*  PyLong_AsVoidPtr(object)
 
 #------------------------------------------------------------------------------
@@ -25,9 +25,10 @@ cdef inline object tomemory(void *base, MPI_Aint size):
 
 #------------------------------------------------------------------------------
 
+#@cython.final
 #@cython.internal
 cdef class _p_mem:
-    cdef void   *buf
+    cdef void *buf
     def __cinit__(self):
         self.buf = NULL
     def __dealloc__(self):

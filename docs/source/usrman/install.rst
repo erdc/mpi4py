@@ -67,7 +67,7 @@ or alternatively *setuptools* :program:`easy_install` (deprecated)::
 Using **distutils**
 -------------------
 
-*MPI for Python* uses a standard distutils-based buildsystem. However,
+*MPI for Python* uses a standard distutils-based build system. However,
 some distutils commands (like *build*) have additional options:
 
 * :option:`--mpicc=` : let you specify a special location or name for
@@ -105,7 +105,7 @@ After unpacking the release tarball::
 the distribution is ready for building.
 
 - If you use a MPI implementation providing a :program:`mpicc`
-  compiler wrapper (e.g., MPICH 1/2, Open MPI, LAM), it will be used
+  compiler wrapper (e.g., MPICH, Open MPI, LAM), it will be used
   for compilation and linking. This is the preferred and easiest way
   of building *MPI for Python*.
 

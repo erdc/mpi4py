@@ -82,7 +82,7 @@ cdef int comm_attr_delete_cb(
         return MPI_ERR_OTHER
     return MPI_SUCCESS
 
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef int comm_attr_copy_fn(MPI_Comm comm,
                            int keyval,
                            void *extra_state,
@@ -95,7 +95,7 @@ cdef int comm_attr_copy_fn(MPI_Comm comm,
     return comm_attr_copy_cb(comm, keyval, extra_state,
                              attrval_in, attrval_out, flag)
 
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef int comm_attr_delete_fn(MPI_Comm comm,
                              int keyval,
                              void *attrval,
@@ -131,5 +131,61 @@ cdef inline object detach_buffer(void *p, int n):
     finally:
         _buffer = None
     return ob
+
+# -----------------------------------------------------------------------------
+
+cdef object __UNWEIGHTED__    = <MPI_Aint>MPI_UNWEIGHTED
+
+cdef object __WEIGHTS_EMPTY__ = <MPI_Aint>MPI_WEIGHTS_EMPTY
+
+cdef object asarray_weights(object weights, int nweight, int **iweight):
+    #
+    if weights is None:
+        iweight[0] = MPI_UNWEIGHTED
+        return None
+    #
+    cdef int i = 0
+    if weights is __WEIGHTS_EMPTY__:
+        if MPI_WEIGHTS_EMPTY != MPI_UNWEIGHTED:
+            iweight[0] = MPI_WEIGHTS_EMPTY
+            return None
+        else:
+            weights = mkarray_int(nweight, iweight)
+            for i from 0 <= i < nweight: iweight[0][i] = 0
+            return weights
+    #
+    if weights is __UNWEIGHTED__:
+        iweight[0] = MPI_UNWEIGHTED
+        return None
+    #
+    return asarray_int(weights, nweight, iweight)
+
+# -----------------------------------------------------------------------------
+
+cdef inline int comm_neighbors_count(MPI_Comm comm,
+                                     int *incoming,
+                                     int *outgoing,
+                                     ) except -1:
+    cdef int topo = MPI_UNDEFINED
+    cdef int size=0, ndims=0, rank=0, nneighbors=0
+    cdef int indegree=0, outdegree=0, weighted=0
+    CHKERR( MPI_Topo_test(comm, &topo) )
+    if topo == <int>MPI_UNDEFINED: # XXX
+        CHKERR( MPI_Comm_size(comm, &size) )
+        indegree = outdegree = size
+    elif topo == <int>MPI_CART:
+        CHKERR( MPI_Cartdim_get(comm, &ndims) )
+        indegree = outdegree = 2*ndims
+    elif topo == <int>MPI_GRAPH:
+        CHKERR( MPI_Comm_rank(comm, &rank) )
+        CHKERR( MPI_Graph_neighbors_count(
+                comm, rank, &nneighbors) )
+        indegree = outdegree = nneighbors
+    elif topo == <int>MPI_DIST_GRAPH:
+        CHKERR( MPI_Dist_graph_neighbors_count(
+                comm, &indegree, &outdegree, &weighted) )
+    if incoming != NULL: incoming[0] = indegree
+    if outgoing != NULL: outgoing[0] = outdegree
+    return 0
 
 # -----------------------------------------------------------------------------

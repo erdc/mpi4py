@@ -87,15 +87,18 @@ cdef inline object op_user_py(int index, object x, object y, object dt):
 
 cdef inline void op_user_mpi(
     int index, void *a, void *b, MPI_Aint n, MPI_Datatype *t) with gil:
+    cdef Datatype datatype
     # errors in user-defined reduction operations are unrecoverable
     try:
-        op_user_py(index, tomemory(a, n), tomemory(b, n), new_Datatype(t[0]))
+        datatype = <Datatype>Datatype.__new__(Datatype)
+        datatype.ob_mpi = t[0]
+        op_user_py(index, tomemory(a, n), tomemory(b, n), datatype)
     except:
         # print the full exception traceback and abort.
         PySys_WriteStderr(b"Fatal Python error: exception in "
                           b"user-defined reduction operation\n", 0)
-        print_traceback()
-        MPI_Abort(MPI_COMM_WORLD, 1)
+        try: print_traceback()
+        finally: MPI_Abort(MPI_COMM_WORLD, 1)
 
 cdef inline void op_user_call(
     int index, void *a, void *b, int *plen, MPI_Datatype *t) nogil:
@@ -110,52 +113,52 @@ cdef inline void op_user_call(
     # make the actual GIL-safe Python call
     op_user_mpi(index, a, b, n, t)
 
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_01(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 1, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_02(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 2, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_03(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 3, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_04(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 4, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_05(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 5, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_06(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 6, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_07(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 7, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_08(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 8, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_09(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call( 9, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_10(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(10, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_11(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(11, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_12(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(12, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_13(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(13, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_14(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(14, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_15(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(15, a, b, n, t)
-@cython.callspec("PyMPIAPI")
+@cython.callspec("MPIAPI")
 cdef void op_user_16(void *a, void *b, int *n, MPI_Datatype *t) nogil:
     op_user_call(15, a, b, n, t)
 

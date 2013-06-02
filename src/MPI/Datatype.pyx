@@ -51,8 +51,10 @@ cdef class Datatype:
     Datatype
     """
 
-    def __cinit__(self):
+    def __cinit__(self, Datatype datatype=None):
         self.ob_mpi = MPI_DATATYPE_NULL
+        if datatype is not None:
+            self.ob_mpi = datatype.ob_mpi
 
     def __dealloc__(self):
         if not (self.flags & PyMPI_OWNED): return
@@ -247,9 +249,9 @@ cdef class Datatype:
         """
         cdef int ndims = 0, *isizes = NULL
         cdef int *isubsizes = NULL, *istarts = NULL
-        sizes    = getarray_int(sizes,    &ndims, &isizes   )
-        subsizes = chkarray_int(subsizes,  ndims, &isubsizes)
-        starts   = chkarray_int(starts,    ndims, &istarts  )
+        sizes    = getarray_int(sizes,   &ndims, &isizes   )
+        subsizes = chkarray_int(subsizes, ndims, &isubsizes)
+        starts   = chkarray_int(starts,   ndims, &istarts  )
         cdef int iorder = MPI_ORDER_C
         if order is not None: iorder = order
         #
@@ -426,7 +428,7 @@ cdef class Datatype:
         # get the datatype envelope
         cdef int ni = 0, na = 0, nd = 0, combiner = MPI_UNDEFINED
         CHKERR( MPI_Type_get_envelope(self.ob_mpi, &ni, &na, &nd, &combiner) )
-        # return self immediatly for named datatypes
+        # return self immediately for named datatypes
         if combiner == MPI_COMBINER_NAMED: return self
         # get the datatype contents
         cdef int *i = NULL

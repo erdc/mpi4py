@@ -17,6 +17,9 @@ def getoptionparser():
     parser.add_option("-e", "--exclude", type="string",
                       action="append", dest="exclude", default=[],
                       help="exclude tests matching PATTERN", metavar="PATTERN")
+    parser.add_option("--no-builddir",
+                      action="store_false", dest="builddir", default=True,
+                      help="disable testing from build directory")
     parser.add_option("--path", type="string",
                       action="append", dest="path", default=[],
                       help="prepend PATH to sys.path", metavar="PATH")
@@ -40,6 +43,9 @@ def getoptionparser():
     parser.add_option("--no-numpy",
                       action="store_false", dest="numpy", default=True,
                       help="disable testing with NumPy arrays")
+    parser.add_option("--no-array",
+                      action="store_false", dest="array", default=True,
+                      help="disable testing with builtin array.array")
     return parser
 
 def getbuilddir():
@@ -53,7 +59,7 @@ def getbuilddir():
 def setup_python(options):
     rootdir = os.path.dirname(os.path.dirname(__file__))
     builddir = os.path.join(rootdir, getbuilddir())
-    if os.path.exists(builddir):
+    if options.builddir and os.path.exists(builddir):
         sys.path.insert(0, builddir)
     if options.path:
         path = options.path[:]
@@ -81,6 +87,12 @@ def setup_unittest(options):
     _WritelnDecorator.writeln = writeln
 
 def import_package(options, pkgname):
+    #
+    if not options.numpy:
+        sys.modules['numpy'] = None
+    if not options.array:
+        sys.modules['array'] = None
+    #
     package = __import__(pkgname)
     #
     import mpi4py.rc
@@ -148,6 +160,8 @@ def load_tests(options, args):
         exclude = re.compile('|'.join(options.exclude)).search
     if not options.numpy:
         sys.modules['numpy'] = None
+    if not options.array:
+        sys.modules['array'] = None
     for testfile in testfiles:
         filename = os.path.basename(testfile)
         testname = os.path.splitext(filename)[0]

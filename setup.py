@@ -185,6 +185,7 @@ def configure_mpi(ext, config_cmd):
               "Check your configuration!!!")
     ok = config_cmd.check_header("mpi.h", headers=["stdlib.h"])
     if not ok: raise DistutilsPlatformError(errmsg)
+    #
     headers = ["stdlib.h", "mpi.h"]
     ConfigTest = dedent("""\
     int main(int argc, char **argv)
@@ -202,12 +203,14 @@ def configure_mpi(ext, config_cmd):
     if not ok: raise DistutilsPlatformError(errmsg % "link")
     #
     log.info("checking for missing MPI functions/symbols ...")
-    macros = ("MPICH2", "OPEN_MPI", "DEINO_MPI", "MSMPI_VER",)
+    tests  = ["defined(%s)" % macro for macro in
+              ("OPEN_MPI", "MPICH2", "DEINO_MPI", "MSMPI_VER",)]
+    tests += ["(defined(MPICH_NAME)&&(MPICH_NAME==3))"]
     ConfigTest = dedent('''\
     #if !(%s)
     #error "Unknown MPI"
     #endif
-    ''') % "||".join(["defined(%s)" % m for m in macros])
+    ''') % "||".join(tests)
     ok = config_cmd.try_compile(ConfigTest, headers=headers)
     if not ok:
         from conf.mpidistutils import ConfigureMPI
@@ -248,7 +251,7 @@ def configure_mpe(ext, config_cmd):
           )
     if ok:
         ext.define_macros += [('HAVE_MPE', 1)]
-        if ((linux or darwin or solaris) and 
+        if ((linux or darwin or solaris) and
             libraries[0] == 'lmpe'):
             ext.extra_link_args += whole_archive('lmpe')
             for libname in libraries[1:]:
@@ -275,7 +278,7 @@ def configure_libmpe(lib, config_cmd):
             libname, other_libraries=libraries):
             libraries.insert(0, libname)
     if 'mpe' in libraries:
-        if ((linux or darwin or solaris) and 
+        if ((linux or darwin or solaris) and
             libraries[0] == 'lmpe'):
             lib.extra_link_args += whole_archive('lmpe')
             for libname in libraries[1:]:
@@ -289,12 +292,17 @@ def configure_libvt(lib, config_cmd):
         for vt_lib in ('vt-mpi', 'vt.mpi'):
             ok = config_cmd.check_library(vt_lib)
             if ok: break
-        if ok:
-            if linux or darwin or solaris:
-                lib.extra_link_args += whole_archive(vt_lib)
-                lib.extra_link_args += ['-lotf', '-lz', '-ldl']
-            else:
-                lib.libraries += [vt_lib, 'otf', 'z', 'dl']
+        if not ok: return
+        libraries = []
+        for libname in ('otf', 'z', 'dl'):
+            ok = config_cmd.check_library(libname)
+            if ok: libraries.append(libname)
+        if linux or darwin or solaris:
+            lib.extra_link_args += whole_archive(vt_lib)
+            lib.extra_link_args += ['-l%s' % libname
+                                    for libname in libraries]
+        else:
+            lib.libraries += [vt_lib] + libraries
     elif lib.name in ('vt-mpi', 'vt-hyb'):
         vt_lib = lib.name
         ok = config_cmd.check_library(vt_lib)
@@ -453,7 +461,8 @@ def run_setup():
                                       'include/mpi4py/*.pyx',
                                       'include/mpi4py/*.pxi',
                                       'include/mpi4py/*.i',
-                                      'MPI.pxd', 'mpi_c.pxd',]},
+                                      'MPI.pxd', 'libmpi.pxd',
+                                      'mpi_c.pxd',]},
           ext_modules  = [Ext(**ext) for ext in ext_modules()],
           libraries    = [Lib(**lib) for lib in libraries()  ],
           executables  = [Exe(**exe) for exe in executables()],
@@ -579,7 +588,7 @@ def run_testsuite(cmd):
         from runtests import main
     finally:
         del sys.path[0]
-    if cmd.dry_run: 
+    if cmd.dry_run:
         return
     args = cmd.args[:] or []
     if cmd.verbose < 1:

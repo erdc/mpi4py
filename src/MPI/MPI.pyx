@@ -2,7 +2,7 @@ __doc__ = """
 Message Passing Interface
 """
 
-include "mpi4py/mpi.pxi"
+from mpi4py.libmpi cimport *
 
 include "stdlib.pxi"
 include "atimport.pxi"
@@ -57,6 +57,11 @@ BOTTOM = __BOTTOM__
 IN_PLACE = __IN_PLACE__
 #"""*In-place* option for collective communications"""
 
+UNWEIGHTED    = __UNWEIGHTED__
+#"""Unweighted graph"""
+
+WEIGHTS_EMPTY = __WEIGHTS_EMPTY__
+#"""Empty graph weights"""
 
 
 # Predefined Attribute Keyvals
@@ -99,7 +104,6 @@ def Free_mem(memory):
     cdef void *base = NULL
     asmemory(memory, &base, NULL)
     CHKERR( MPI_Free_mem(base) )
-
 
 # Initialization and Exit
 # -----------------------
@@ -283,6 +287,8 @@ def _pypy_setup():
         Status,
         Datatype,
         Request,
+        Prequest,
+        Grequest,
         Message,
         Op,
         Group,
@@ -299,6 +305,6 @@ def _pypy_setup():
                 hasattr(klass, name)
 _pypy_setup()
 del _pypy_setup
-"""
+""" in globals()
 
 # --------------------------------------------------------------------
